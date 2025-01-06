@@ -7,10 +7,7 @@ const app = express();
 const server = http.createServer(app);
 
 // Define allowed origins for CORS
-const allowedOrigins = [
-  "https://chatter-ji.vercel.app",
-  "http://localhost:5173",
-];
+const allowedOrigins = ["exp://192.168.183.246:8081", "http://localhost:8081"];
 
 // CORS options
 const corsOptions = {
@@ -29,17 +26,65 @@ const io = new Server(server, {
   cors: corsOptions,
 });
 
+const socketToRoomMap = new Map();
+const roomToSocketMap = new Map();
+
 // Handle connection event
 io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
 
-  // Listen for custom events
-  socket.on("message", (data) => {
-    console.log("Message received:", data);
+  // Listen for room creation event
+  socket.on("createRoom", (roomId) => {
+    console.log(`Room created: ${roomId} by ${socket.id}`);
+    roomToSocketMap.set(roomId, socket.id);
+    socketToRoomMap.set(socket.id, roomId);
+    // Join the room
+    socket.join(roomId);
 
-    // Broadcast the message to all clients except the sender
-    socket.broadcast.emit("message", data);
+    // Notify the user that the room was created
+    socket.emit("roomCreated", roomId);
+
+    // Notify other users in the room (if any)
+    socket.to(roomId).emit("userJoined", socket.id);
   });
+
+  socket.on("joinRoom", (roomId) => {
+    console.log(`User ${socket.id} joined room ${roomId}`);
+    const usersInRoom = roomToUsersMap.get(roomId);
+    if (usersInRoom.length >= 2) {
+      socket.emit("roomFull", { roomId });
+      console.log(`Room ${roomId} is full. User ${socket.id} cannot join.`);
+      return;
+    }
+
+    // Add the user to the room
+    usersInRoom.push(socket.id);
+    roomToUsersMap.set(roomId, usersInRoom);
+    socketToRoomMap.set(socket.id, roomId);
+
+    // Join the room
+    socket.join(roomId);
+
+    // Notify the user that they joined the room
+    socket.emit("joinedRoom", { roomId, users: usersInRoom });
+
+    // Notify other users in the room
+    socket.to(roomId).emit("userJoined", { roomId, newUser: socket.id });
+
+    console.log(
+      `User ${socket.id} joined room ${roomId}. Room users:`,
+      usersInRoom
+    );
+
+    // Check if the room is full
+    if (usersInRoom.length === 2) {
+      io.to(roomId).emit("roomReady", { roomId, users: usersInRoom });
+      console.log(`Room ${roomId} is ready with 2 users.`);
+    }
+  });
+
+
+
 
   // Handle disconnect event
   socket.on("disconnect", () => {
