@@ -7,11 +7,16 @@ const app = express();
 const server = http.createServer(app);
 
 // Define allowed origins for CORS
-const allowedOrigins = ["exp://192.168.183.246:8081", "http://localhost:8081"];
+const allowedOrigins = [
+  "exp://192.168.149.246:8081",
+  "http://localhost:8081",
+  "http://192.168.149.246:3000",
+];
+
 
 // CORS options
 const corsOptions = {
-  origin: allowedOrigins,
+  origin: "*",
   methods: ["GET", "POST"],
   credentials: true,
   optionsSuccessStatus: 204,
@@ -28,7 +33,9 @@ const io = new Server(server, {
 
 const socketToRoomMap = new Map();
 const roomToSocketMap = new Map();
+ 
 
+console.log("try to connect")
 // Handle connection event
 io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
@@ -94,6 +101,6 @@ io.on("connection", (socket) => {
 
 // Start the server
 const PORT = 3000;
-server.listen(PORT, () => {
+server.listen(PORT,"0.0.0.0", () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
